@@ -61,7 +61,6 @@ uint16_t packetSize4;
 uint16_t packetSize5;
 uint16_t packetSize6;
 
-uint16_t fifoCount;     // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64]; // FIFO storage buffer
 
 // orientation/motion vars
@@ -439,32 +438,81 @@ void checkDevStatus(int mpu_num)
 // ================================================================
 // ===                    MPU DMP Get Data                      ===
 // ================================================================
+
+uint16_t fifoCount1;
+uint16_t fifoCount2;
+uint16_t fifoCount3;
+uint16_t fifoCount4;
+uint16_t fifoCount5;
+uint16_t fifoCount6;
+
 void GetDMP()
 {
   // Serial.println(F("FIFO interrupt at:"));
   // Serial.println(micros());
-  static unsigned long LastGoodPacketTime;
+  //static unsigned long LastGoodPacketTime;
   mpuInterrupt = false;
   FifoAlive = 1;
 
-  fifoCount = mpu1.getFIFOCount();
-  if ((!fifoCount) || (fifoCount % packetSize1))
+  fifoCount1 = mpu1.getFIFOCount(); // count of all bytes currently in FIFO
+  fifoCount2 = mpu2.getFIFOCount();
+  fifoCount3 = mpu3.getFIFOCount();
+  fifoCount4 = mpu4.getFIFOCount();
+  fifoCount5 = mpu5.getFIFOCount();
+  fifoCount6 = mpu6.getFIFOCount();
+
+  if ((!fifoCount1) || (fifoCount1 % packetSize1) || (!fifoCount2) || (fifoCount2 % packetSize2) || (!fifoCount3) || (fifoCount3 % packetSize3) ||
+      (!fifoCount4) || (fifoCount4 % packetSize4) || (!fifoCount5) || (fifoCount5 % packetSize5) || (!fifoCount6) || (fifoCount6 % packetSize6))
   {                             // we have failed Reset and wait till next time!
     digitalWrite(LED_PIN, LOW); // lets turn off the blinking light so we can see we are failing.
     mpu1.resetFIFO();           // clear the buffer and start over
   }
   else
   {
-    while (fifoCount >= packetSize1)
+    while (fifoCount1 >= packetSize1)
     {                                             // Get the packets until we have the latest!
       mpu1.getFIFOBytes(fifoBuffer, packetSize1); // lets do the magic and get the data
-      fifoCount -= packetSize1;
+      fifoCount1 -= packetSize1;
     }
-    LastGoodPacketTime = millis();
-    MPUMath(1); // <<<<<<<<<<<<<<<<<<<<<<<<<<<< On success MPUMath() <<<<<<<<<<<<<<<<<<<
-  }
+    MPUMath(1);
 
-  fifoCount = mpu2.getFIFOCount();
+    while (fifoCount2 >= packetSize2)
+    {
+      mpu2.getFIFOBytes(fifoBuffer, packetSize2);
+      fifoCount2 -= packetSize2;
+    }
+    MPUMath(2);
+
+    while (fifoCount3 >= packetSize3)
+    {
+      mpu3.getFIFOBytes(fifoBuffer, packetSize3);
+      fifoCount3 -= packetSize3;
+    }
+    MPUMath(3);
+
+    while (fifoCount4 >= packetSize4)
+    {
+      mpu4.getFIFOBytes(fifoBuffer, packetSize4);
+      fifoCount4 -= packetSize4;
+    }
+    MPUMath(4);
+
+    while (fifoCount5 >= packetSize5)
+    {
+      mpu5.getFIFOBytes(fifoBuffer, packetSize5);
+      fifoCount5 -= packetSize5;
+    }
+    MPUMath(5);
+
+    while (fifoCount6 >= packetSize6)
+    {
+      mpu6.getFIFOBytes(fifoBuffer, packetSize6);
+      fifoCount6 -= packetSize6;
+    }
+    MPUMath(6);
+    Serial.println();
+  }
+  /*
   if ((!fifoCount) || (fifoCount % packetSize2))
   {
     digitalWrite(LED_PIN, LOW);
@@ -477,11 +525,9 @@ void GetDMP()
       mpu2.getFIFOBytes(fifoBuffer, packetSize2);
       fifoCount -= packetSize2;
     }
-    LastGoodPacketTime = millis();
     MPUMath(2);
   }
 
-  fifoCount = mpu3.getFIFOCount();
   if ((!fifoCount) || (fifoCount % packetSize3))
   {
     digitalWrite(LED_PIN, LOW);
@@ -494,11 +540,9 @@ void GetDMP()
       mpu3.getFIFOBytes(fifoBuffer, packetSize3);
       fifoCount -= packetSize3;
     }
-    LastGoodPacketTime = millis();
     MPUMath(3);
   }
 
-  fifoCount = mpu4.getFIFOCount();
   if ((!fifoCount) || (fifoCount % packetSize4))
   {
     digitalWrite(LED_PIN, LOW);
@@ -511,11 +555,9 @@ void GetDMP()
       mpu4.getFIFOBytes(fifoBuffer, packetSize4);
       fifoCount -= packetSize4;
     }
-    LastGoodPacketTime = millis();
     MPUMath(4);
   }
 
-  fifoCount = mpu5.getFIFOCount();
   if ((!fifoCount) || (fifoCount % packetSize5))
   {
     digitalWrite(LED_PIN, LOW);
@@ -528,11 +570,9 @@ void GetDMP()
       mpu5.getFIFOBytes(fifoBuffer, packetSize5);
       fifoCount -= packetSize5;
     }
-    LastGoodPacketTime = millis();
     MPUMath(5);
   }
 
-  fifoCount = mpu6.getFIFOCount();
   if ((!fifoCount) || (fifoCount % packetSize6))
   {
     digitalWrite(LED_PIN, LOW);
@@ -545,12 +585,11 @@ void GetDMP()
       mpu6.getFIFOBytes(fifoBuffer, packetSize6);
       fifoCount -= packetSize6;
     }
-    LastGoodPacketTime = millis();
     MPUMath(6);
     Serial.println();
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
   }
-
+  */
   //DPRINTLN();
 }
 
