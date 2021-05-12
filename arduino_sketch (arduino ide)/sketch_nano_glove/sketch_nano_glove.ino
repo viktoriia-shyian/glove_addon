@@ -74,6 +74,8 @@ float euler[3];      // [psi, theta, phi]    Euler angle container
 float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 byte StartUP = 100;  // lets get 100 readings from the MPU before we start trusting them (Bot is not trying to balance at this point it is just starting up.)
 
+static unsigned long _ETimer = 0;
+
 void setup()
 {
   pinMode(13, OUTPUT);
@@ -157,7 +159,6 @@ void loop()
     }
   }
 
-  static unsigned long _ETimer;
   if (millis() - _ETimer >= (10))
   {
     _ETimer += (10);
@@ -462,7 +463,7 @@ void GetDMP()
     LastGoodPacketTime = millis();
     MPUMath(1); // <<<<<<<<<<<<<<<<<<<<<<<<<<<< On success MPUMath() <<<<<<<<<<<<<<<<<<<
   }
-  /*
+
   fifoCount = mpu2.getFIFOCount();
   if ((!fifoCount) || (fifoCount % packetSize2))
   {
@@ -546,9 +547,11 @@ void GetDMP()
     }
     LastGoodPacketTime = millis();
     MPUMath(6);
+    Serial.println();
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
   }
-  */
+
+  //DPRINTLN();
 }
 
 float Yaw, Pitch, Roll;
@@ -594,7 +597,7 @@ void MPUMath(int num)
   Yaw = (ypr[2] * 180.0 / M_PI);
   Pitch = (ypr[1] * 180.0 / M_PI);
   Roll = (ypr[0] * 180.0 / M_PI);
-
+  /*
   DPRINTSTIMER(100)
   {
     //DPRINTSFN(15, " W:", q.w, -6, 4);
@@ -610,6 +613,8 @@ void MPUMath(int num)
     //DPRINTSFN(15, " Roll:", ypr[2], -6, 2);
     DPRINTLN();
   }
+*/
+  Serial.println(String(num) + "    x=" + String(Yaw) + "     y=" + String(Pitch) + "     z=" + String(Roll));
 }
 
 void timer_dmp()
