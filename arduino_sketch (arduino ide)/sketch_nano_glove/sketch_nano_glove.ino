@@ -40,6 +40,39 @@ int16_t gx, gy, gz;
 //int MPUOffsets[6] = {    2471,   -563,   690,   66,     -29,     39}; //
 //int MPUOffsets[6] = {1136, -44, 1047 , 52, 5, 26};// Test Board
 int MPUOffsets[6] = {24288, -28144, 17392, -163, -50, -50}; // Test Board 9255
+// INTERRUPT DETECTION ROUTINE
+volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
+
+//MPU DMP SETUP                       ===
+int FifoAlive = 0; // tests if the interrupt is triggering
+int IsAlive = -20; // counts interrupt start at -20 to get 20+ good values before assuming connected
+// MPU control/status vars
+uint8_t mpuIntStatus1; // holds actual interrupt status byte from MPU
+uint8_t mpuIntStatus2;
+uint8_t mpuIntStatus3;
+uint8_t mpuIntStatus4;
+uint8_t mpuIntStatus5;
+uint8_t mpuIntStatus6;
+uint8_t devStatus;    // return status after each device operation (0 = success, !0 = error)
+uint16_t packetSize1; // expected DMP packet size (default is 42 bytes)
+uint16_t packetSize2;
+uint16_t packetSize3;
+uint16_t packetSize4;
+uint16_t packetSize5;
+uint16_t packetSize6;
+
+uint16_t fifoCount;     // count of all bytes currently in FIFO
+uint8_t fifoBuffer[64]; // FIFO storage buffer
+
+// orientation/motion vars
+Quaternion q;        // [w, x, y, z]         quaternion container
+VectorInt16 aa;      // [x, y, z]            accel sensor measurements
+VectorInt16 aaReal;  // [x, y, z]            gravity-free accel sensor measurements
+VectorInt16 aaWorld; // [x, y, z]            world-frame accel sensor measurements
+VectorFloat gravity; // [x, y, z]            gravity vector
+float euler[3];      // [psi, theta, phi]    Euler angle container
+float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+byte StartUP = 100;  // lets get 100 readings from the MPU before we start trusting them (Bot is not trying to balance at this point it is just starting up.)
 
 void setup()
 {
@@ -55,11 +88,17 @@ void setup()
   mpu4.initialize();
   mpu5.initialize();
   mpu6.initialize();
+
+  Serial.println("i2cSetup");
+  i2cSetup();
+  Serial.println("MPU6050Connect");
+  MPU6050Connect();
+  Serial.println("Setup complete");
+  pinMode(LED_PIN, OUTPUT);
 }
 
 void loop()
 {
-
   if (Serial.available() > 0)
   {
     String input = Serial.readString();
@@ -98,16 +137,35 @@ void loop()
     }
     else if (input == "5")
     {
-      Serial.begin(115200); //115200
-      while (!Serial)
-        ;
       Serial.println("i2cSetup");
       i2cSetup();
       Serial.println("MPU6050Connect");
       MPU6050Connect();
       Serial.println("Setup complete");
       pinMode(LED_PIN, OUTPUT);
+
+      static unsigned long _ETimer;
+      if (millis() - _ETimer >= (10))
+      {
+        _ETimer += (10);
+        mpuInterrupt = true;
+      }
+      if (mpuInterrupt)
+      { // wait for MPU interrupt or extra packet(s) available
+        GetDMP();
+      }
     }
+  }
+
+  static unsigned long _ETimer;
+  if (millis() - _ETimer >= (10))
+  {
+    _ETimer += (10);
+    mpuInterrupt = true;
+  }
+  if (mpuInterrupt)
+  { // wait for MPU interrupt or extra packet(s) available
+    GetDMP();
   }
 }
 
@@ -161,7 +219,7 @@ void send_offsets()
   gx = mpu1.getXGyroOffset();
   gy = mpu1.getYGyroOffset();
   gz = mpu1.getZGyroOffset();
-  serial_send();
+  send_raw_data();
 
   ax = mpu2.getXAccelOffset();
   ay = mpu2.getYAccelOffset();
@@ -169,7 +227,7 @@ void send_offsets()
   gx = mpu2.getXGyroOffset();
   gy = mpu2.getYGyroOffset();
   gz = mpu2.getZGyroOffset();
-  serial_send();
+  send_raw_data();
 
   ax = mpu3.getXAccelOffset();
   ay = mpu3.getYAccelOffset();
@@ -177,7 +235,7 @@ void send_offsets()
   gx = mpu3.getXGyroOffset();
   gy = mpu3.getYGyroOffset();
   gz = mpu3.getZGyroOffset();
-  serial_send();
+  send_raw_data();
 
   ax = mpu4.getXAccelOffset();
   ay = mpu4.getYAccelOffset();
@@ -185,7 +243,7 @@ void send_offsets()
   gx = mpu4.getXGyroOffset();
   gy = mpu4.getYGyroOffset();
   gz = mpu4.getZGyroOffset();
-  serial_send();
+  send_raw_data();
 
   ax = mpu5.getXAccelOffset();
   ay = mpu5.getYAccelOffset();
@@ -193,7 +251,7 @@ void send_offsets()
   gx = mpu5.getXGyroOffset();
   gy = mpu5.getYGyroOffset();
   gz = mpu5.getZGyroOffset();
-  serial_send();
+  send_raw_data();
 
   ax = mpu6.getXAccelOffset();
   ay = mpu6.getYAccelOffset();
@@ -201,7 +259,7 @@ void send_offsets()
   gx = mpu6.getXGyroOffset();
   gy = mpu6.getYGyroOffset();
   gz = mpu6.getZGyroOffset();
-  serial_send();
+  send_raw_data();
 }
 
 void send_raw_data()
@@ -251,43 +309,10 @@ void i2cSetup()
 #endif
 }
 
-// INTERRUPT DETECTION ROUTINE
-volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
 void dmpDataReady()
 {
   mpuInterrupt = true;
 }
-
-//MPU DMP SETUP                       ===
-int FifoAlive = 0; // tests if the interrupt is triggering
-int IsAlive = -20; // counts interrupt start at -20 to get 20+ good values before assuming connected
-// MPU control/status vars
-uint8_t mpuIntStatus1; // holds actual interrupt status byte from MPU
-uint8_t mpuIntStatus2;
-uint8_t mpuIntStatus3;
-uint8_t mpuIntStatus4;
-uint8_t mpuIntStatus5;
-uint8_t mpuIntStatus6;
-uint8_t devStatus;    // return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize1; // expected DMP packet size (default is 42 bytes)
-uint16_t packetSize2;
-uint16_t packetSize3;
-uint16_t packetSize4;
-uint16_t packetSize5;
-uint16_t packetSize6;
-
-uint16_t fifoCount;     // count of all bytes currently in FIFO
-uint8_t fifoBuffer[64]; // FIFO storage buffer
-
-// orientation/motion vars
-Quaternion q;        // [w, x, y, z]         quaternion container
-VectorInt16 aa;      // [x, y, z]            accel sensor measurements
-VectorInt16 aaReal;  // [x, y, z]            gravity-free accel sensor measurements
-VectorInt16 aaWorld; // [x, y, z]            world-frame accel sensor measurements
-VectorFloat gravity; // [x, y, z]            gravity vector
-float euler[3];      // [psi, theta, phi]    Euler angle container
-float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-byte StartUP = 100;  // lets get 100 readings from the MPU before we start trusting them (Bot is not trying to balance at this point it is just starting up.)
 
 void MPU6050Connect()
 {
@@ -356,8 +381,13 @@ void MPU6050Connect()
   mpuIntStatus6 = mpu6.getIntStatus();
 
   // get expected DMP packet size for later comparison
-  packetSize = mpu.dmpGetFIFOPacketSize(); //TODO
-  delay(1000);                             // Let it Stabalize
+  packetSize1 = mpu1.dmpGetFIFOPacketSize();
+  packetSize2 = mpu2.dmpGetFIFOPacketSize();
+  packetSize3 = mpu3.dmpGetFIFOPacketSize();
+  packetSize4 = mpu4.dmpGetFIFOPacketSize();
+  packetSize5 = mpu5.dmpGetFIFOPacketSize();
+  packetSize6 = mpu6.dmpGetFIFOPacketSize();
+  delay(1000); // Let it Stabalize
 
   mpu1.resetFIFO(); // Clear fifo buffer
   mpu2.resetFIFO();
@@ -432,7 +462,7 @@ void GetDMP()
     LastGoodPacketTime = millis();
     MPUMath(1); // <<<<<<<<<<<<<<<<<<<<<<<<<<<< On success MPUMath() <<<<<<<<<<<<<<<<<<<
   }
-
+  /*
   fifoCount = mpu2.getFIFOCount();
   if ((!fifoCount) || (fifoCount % packetSize2))
   {
@@ -518,13 +548,11 @@ void GetDMP()
     MPUMath(6);
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
   }
+  */
 }
 
-// ================================================================
-// ===                        MPU Math                          ===
-// ================================================================
 float Yaw, Pitch, Roll;
-void MPUMath(num)
+void MPUMath(int num)
 {
   if (num == 1)
   {
@@ -584,9 +612,6 @@ void MPUMath(num)
   }
 }
 
-// ================================================================
-// ===                          Loop                            ===
-// ================================================================
 void timer_dmp()
 {
   static unsigned long _ETimer;
