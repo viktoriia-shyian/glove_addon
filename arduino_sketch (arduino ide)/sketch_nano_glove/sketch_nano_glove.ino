@@ -653,7 +653,11 @@ void MPUMath(int num)
     DPRINTLN();
   }
 */
-  Serial.println(String(num) + "    x=" + String(Yaw) + "     y=" + String(Pitch) + "     z=" + String(Roll));
+  Serial.print(String(Yaw) + ";");
+  Serial.print(String(Pitch) + ";");
+  Serial.println(String(Roll));
+
+  //Serial.println(String(num) + "    x=" + String(Yaw) + "     y=" + String(Pitch) + "     z=" + String(Roll));
 }
 
 void timer_dmp()
