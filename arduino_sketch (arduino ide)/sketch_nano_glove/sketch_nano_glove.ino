@@ -3,25 +3,6 @@
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 
-#define DEBUG
-#ifdef DEBUG
-//#define DPRINT(args...)  Serial.print(args)             //OR use the following syntax:
-#define DPRINTSTIMER(t) for (static unsigned long SpamTimer; (unsigned long)(millis() - SpamTimer) >= (t); SpamTimer = millis())
-#define DPRINTSFN(StrSize, Name, ...)             \
-  {                                               \
-    char S[StrSize];                              \
-    Serial.print("\t");                           \
-    Serial.print(Name);                           \
-    Serial.print(" ");                            \
-    Serial.print(dtostrf((float)__VA_ARGS__, S)); \
-  } //StringSize,Name,Variable,Spaces,Percision
-#define DPRINTLN(...) Serial.println(__VA_ARGS__)
-#else
-#define DPRINTSTIMER(t) if (false)
-#define DPRINTSFN(...) //blank line
-#define DPRINTLN(...)  //blank line
-#endif
-
 #define interruptPin 2
 #define LED_PIN 13
 
@@ -35,12 +16,6 @@ MPU6050 mpu6(0x69);
 int16_t ax, ay, az;
 int16_t gx, gy, gz;
 
-// supply your own gyro offsets here, scaled for min sensitivity use MPU6050_calibration.ino
-//                       XA      YA      ZA      XG      YG      ZG
-//int MPUOffsets[6] = {    2471,   -563,   690,   66,     -29,     39}; //
-//int MPUOffsets[6] = {1136, -44, 1047 , 52, 5, 26};// Test Board
-int MPUOffsets[6] = {24288, -28144, 17392, -163, -50, -50}; // Test Board 9255
-// INTERRUPT DETECTION ROUTINE
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
 
 //MPU DMP SETUP                       ===
@@ -74,21 +49,14 @@ float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravit
 byte StartUP = 100;  // lets get 100 readings from the MPU before we start trusting them (Bot is not trying to balance at this point it is just starting up.)
 
 static unsigned long _ETimer = 0;
+int state = 0;
+int time = 10;
 
 void setup()
 {
-  pinMode(13, OUTPUT);
-
   Wire.begin();
   Wire.setClock(400000);
   Serial.begin(38400);
-
-  mpu1.initialize();
-  mpu2.initialize();
-  mpu3.initialize();
-  mpu4.initialize();
-  mpu5.initialize();
-  mpu6.initialize();
 
   Serial.println("i2cSetup");
   i2cSetup();
@@ -106,7 +74,6 @@ void loop()
 
     if (input == "0")
     {
-      // mpu connection state
       Serial.println(mpu1.testConnection() ? "MPU6050 1 OK" : "MPU6050 1 FAIL");
       Serial.println(mpu2.testConnection() ? "MPU6050 2 OK" : "MPU6050 2 FAIL");
       Serial.println(mpu3.testConnection() ? "MPU6050 3 OK" : "MPU6050 3 FAIL");
@@ -116,56 +83,43 @@ void loop()
     }
     else if (input == "1")
     {
-      // sensitivity setting
       set_sensitivity(MPU6050_ACCEL_FS_2, MPU6050_GYRO_FS_250);
       Serial.println("Set sensitivity OK");
     }
     else if (input == "2")
     {
-      //calibration
       calibration(15);
       Serial.println("Calibration OK");
     }
     else if (input == "3")
     {
-      //send_offsets
       send_offsets();
     }
     else if (input == "4")
     {
-      //send data to call
       send_raw_data();
     }
     else if (input == "5")
     {
-      Serial.println("i2cSetup");
-      i2cSetup();
-      Serial.println("MPU6050Connect");
-      MPU6050Connect();
-      Serial.println("Setup complete");
-      pinMode(LED_PIN, OUTPUT);
-
-      static unsigned long _ETimer;
-      if (millis() - _ETimer >= (10))
-      {
-        _ETimer += (10);
-        mpuInterrupt = true;
-      }
-      if (mpuInterrupt)
-      { // wait for MPU interrupt or extra packet(s) available
-        GetDMP();
-      }
+      timer();
+    }
+    else if (input == "6")
+    {
+      state = 1;
     }
   }
 
-  if (millis() - _ETimer >= (10))
+  if (state)
   {
-    _ETimer += (10);
-    mpuInterrupt = true;
-  }
-  if (mpuInterrupt)
-  { // wait for MPU interrupt or extra packet(s) available
-    GetDMP();
+    if (millis() - _ETimer >= (time))
+    {
+      _ETimer += (time);
+      mpuInterrupt = true;
+    }
+    if (mpuInterrupt)
+    { // wait for MPU interrupt or extra packet(s) available
+      GetDMP();
+    }
   }
 }
 
@@ -323,6 +277,7 @@ void MPU6050Connect()
   mpu4.initialize();
   mpu5.initialize();
   mpu6.initialize();
+
   // load and configure the DMP
   devStatus = mpu1.dmpInitialize();
   checkDevStatus(1);
@@ -337,19 +292,9 @@ void MPU6050Connect()
   devStatus = mpu6.dmpInitialize();
   checkDevStatus(6);
 
-  /*
-  mpu.setXAccelOffset(MPUOffsets[0]);
-  mpu.setYAccelOffset(MPUOffsets[1]);
-  mpu.setZAccelOffset(MPUOffsets[2]);
-  mpu.setXGyroOffset(MPUOffsets[3]);
-  mpu.setYGyroOffset(MPUOffsets[4]);
-  mpu.setZGyroOffset(MPUOffsets[5]);
-  */
-
   calibration(15);
 
   Serial.println(F("Enabling DMP..."));
-
   mpu1.setDMPEnabled(true);
   mpu2.setDMPEnabled(true);
   mpu3.setDMPEnabled(true);
@@ -387,9 +332,10 @@ void MPU6050Connect()
   packetSize4 = mpu4.dmpGetFIFOPacketSize();
   packetSize5 = mpu5.dmpGetFIFOPacketSize();
   packetSize6 = mpu6.dmpGetFIFOPacketSize();
-  delay(1000); // Let it Stabalize
+  delay(1000); // let it stabalize
 
-  mpu1.resetFIFO(); // Clear fifo buffer
+  // clear fifo buffer
+  mpu1.resetFIFO();
   mpu2.resetFIFO();
   mpu3.resetFIFO();
   mpu4.resetFIFO();
@@ -403,7 +349,8 @@ void MPU6050Connect()
   mpu5.getIntStatus();
   mpu6.getIntStatus();
 
-  mpuInterrupt = false; // wait for next interrupt
+  // wait for next interrupt
+  mpuInterrupt = false;
 }
 
 void checkDevStatus(int mpu_num)
@@ -435,10 +382,6 @@ void checkDevStatus(int mpu_num)
   }
 }
 
-// ================================================================
-// ===                    MPU DMP Get Data                      ===
-// ================================================================
-
 uint16_t fifoCount1;
 uint16_t fifoCount2;
 uint16_t fifoCount3;
@@ -446,15 +389,12 @@ uint16_t fifoCount4;
 uint16_t fifoCount5;
 uint16_t fifoCount6;
 
-void GetDMP()
+bool GetDMP()
 {
-  // Serial.println(F("FIFO interrupt at:"));
-  // Serial.println(micros());
-  //static unsigned long LastGoodPacketTime;
   mpuInterrupt = false;
-  FifoAlive = 1;
 
-  fifoCount1 = mpu1.getFIFOCount(); // count of all bytes currently in FIFO
+  // count of all bytes currently in FIFO
+  fifoCount1 = mpu1.getFIFOCount();
   fifoCount2 = mpu2.getFIFOCount();
   fifoCount3 = mpu3.getFIFOCount();
   fifoCount4 = mpu4.getFIFOCount();
@@ -466,12 +406,18 @@ void GetDMP()
   {                             // we have failed Reset and wait till next time!
     digitalWrite(LED_PIN, LOW); // lets turn off the blinking light so we can see we are failing.
     mpu1.resetFIFO();           // clear the buffer and start over
+    mpu2.resetFIFO();
+    mpu3.resetFIFO();
+    mpu4.resetFIFO();
+    mpu5.resetFIFO();
+    mpu6.resetFIFO();
   }
   else
   {
+    // get the packets until we have the latest
     while (fifoCount1 >= packetSize1)
-    {                                             // Get the packets until we have the latest!
-      mpu1.getFIFOBytes(fifoBuffer, packetSize1); // lets do the magic and get the data
+    {
+      mpu1.getFIFOBytes(fifoBuffer, packetSize1);
       fifoCount1 -= packetSize1;
     }
     MPUMath(1);
@@ -511,89 +457,14 @@ void GetDMP()
     }
     MPUMath(6);
     Serial.println();
-  }
-  /*
-  if ((!fifoCount) || (fifoCount % packetSize2))
-  {
-    digitalWrite(LED_PIN, LOW);
-    mpu2.resetFIFO();
-  }
-  else
-  {
-    while (fifoCount >= packetSize2)
-    {
-      mpu2.getFIFOBytes(fifoBuffer, packetSize2);
-      fifoCount -= packetSize2;
-    }
-    MPUMath(2);
-  }
 
-  if ((!fifoCount) || (fifoCount % packetSize3))
-  {
-    digitalWrite(LED_PIN, LOW);
-    mpu3.resetFIFO();
+    return 1;
   }
-  else
-  {
-    while (fifoCount >= packetSize3)
-    {
-      mpu3.getFIFOBytes(fifoBuffer, packetSize3);
-      fifoCount -= packetSize3;
-    }
-    MPUMath(3);
-  }
-
-  if ((!fifoCount) || (fifoCount % packetSize4))
-  {
-    digitalWrite(LED_PIN, LOW);
-    mpu4.resetFIFO();
-  }
-  else
-  {
-    while (fifoCount >= packetSize4)
-    {
-      mpu4.getFIFOBytes(fifoBuffer, packetSize4);
-      fifoCount -= packetSize4;
-    }
-    MPUMath(4);
-  }
-
-  if ((!fifoCount) || (fifoCount % packetSize5))
-  {
-    digitalWrite(LED_PIN, LOW);
-    mpu5.resetFIFO();
-  }
-  else
-  {
-    while (fifoCount >= packetSize5)
-    {
-      mpu5.getFIFOBytes(fifoBuffer, packetSize5);
-      fifoCount -= packetSize5;
-    }
-    MPUMath(5);
-  }
-
-  if ((!fifoCount) || (fifoCount % packetSize6))
-  {
-    digitalWrite(LED_PIN, LOW);
-    mpu6.resetFIFO();
-  }
-  else
-  {
-    while (fifoCount >= packetSize6)
-    {
-      mpu6.getFIFOBytes(fifoBuffer, packetSize6);
-      fifoCount -= packetSize6;
-    }
-    MPUMath(6);
-    Serial.println();
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-  }
-  */
-  //DPRINTLN();
+  return 0;
 }
 
 float Yaw, Pitch, Roll;
+
 void MPUMath(int num)
 {
   if (num == 1)
@@ -636,36 +507,17 @@ void MPUMath(int num)
   Yaw = (ypr[2] * 180.0 / M_PI);
   Pitch = (ypr[1] * 180.0 / M_PI);
   Roll = (ypr[0] * 180.0 / M_PI);
-  /*
-  DPRINTSTIMER(100)
-  {
-    //DPRINTSFN(15, " W:", q.w, -6, 4);
-    //DPRINTSFN(15, " X:", q.x, -6, 4);
-    //DPRINTSFN(15, " Y:", q.y, -6, 4);
-    //DPRINTSFN(15, " Z:", q.z, -6, 4);
 
-    DPRINTSFN(15, " angleX:", Yaw, -6, 2);
-    DPRINTSFN(15, " angleY:", Pitch, -6, 2);
-    DPRINTSFN(15, " angleZ:", Roll, -6, 2);
-    //DPRINTSFN(15, " Yaw:", ypr[0], -6, 2);
-    //DPRINTSFN(15, " Pitch:", ypr[1], -6, 2);
-    //DPRINTSFN(15, " Roll:", ypr[2], -6, 2);
-    DPRINTLN();
-  }
-*/
-  Serial.print(String(Yaw) + ";");
-  Serial.print(String(Pitch) + ";");
+  Serial.print(String(Yaw) + "\t");
+  Serial.print(String(Pitch) + "\t");
   Serial.println(String(Roll));
-
-  //Serial.println(String(num) + "    x=" + String(Yaw) + "     y=" + String(Pitch) + "     z=" + String(Roll));
 }
 
-void timer_dmp()
+void timer()
 {
-  static unsigned long _ETimer;
-  if (millis() - _ETimer >= (10))
+  if (millis() - _ETimer >= (time))
   {
-    _ETimer += (10);
+    _ETimer += (time);
     mpuInterrupt = true;
   }
   if (mpuInterrupt)
