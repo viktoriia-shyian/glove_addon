@@ -56,7 +56,7 @@ void setup()
 {
   Wire.begin();
   Wire.setClock(400000);
-  Serial.begin(38400);
+  Serial.begin(9600);
 
   Serial.println("i2cSetup");
   i2cSetup();
@@ -70,9 +70,9 @@ void loop()
 {
   if (Serial.available() > 0)
   {
-    String input = Serial.readString();
+    int input = Serial.parseInt();
 
-    if (input == "0")
+    if (input == 0)
     {
       Serial.println(mpu1.testConnection() ? "MPU6050 1 OK" : "MPU6050 1 FAIL");
       Serial.println(mpu2.testConnection() ? "MPU6050 2 OK" : "MPU6050 2 FAIL");
@@ -86,24 +86,24 @@ void loop()
       set_sensitivity(MPU6050_ACCEL_FS_2, MPU6050_GYRO_FS_250);
       Serial.println("Set sensitivity OK");
     }
-    else if (input == "2")
+    else if (input == 2)
     {
       calibration(15);
       Serial.println("Calibration OK");
     }
-    else if (input == "3")
+    else if (input == 3)
     {
       send_offsets();
     }
-    else if (input == "4")
+    else if (input == 4)
     {
       send_raw_data();
     }
-    else if (input == "5")
+    else if (input == 5)
     {
       timer();
     }
-    else if (input == "6")
+    else if (input == 6)
     {
       state = 1;
     }
