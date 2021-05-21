@@ -18,9 +18,6 @@ int16_t gx, gy, gz;
 
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
 
-//MPU DMP SETUP                       ===
-int FifoAlive = 0; // tests if the interrupt is triggering
-int IsAlive = -20; // counts interrupt start at -20 to get 20+ good values before assuming connected
 // MPU control/status vars
 uint8_t mpuIntStatus1; // holds actual interrupt status byte from MPU
 uint8_t mpuIntStatus2;
@@ -28,7 +25,9 @@ uint8_t mpuIntStatus3;
 uint8_t mpuIntStatus4;
 uint8_t mpuIntStatus5;
 uint8_t mpuIntStatus6;
-uint8_t devStatus;    // return status after each device operation (0 = success, !0 = error)
+
+uint8_t devStatus; // return status after each device operation (0 = success, !0 = error)
+
 uint16_t packetSize1; // expected DMP packet size (default is 42 bytes)
 uint16_t packetSize2;
 uint16_t packetSize3;
@@ -36,27 +35,30 @@ uint16_t packetSize4;
 uint16_t packetSize5;
 uint16_t packetSize6;
 
+uint16_t fifoCount1;
+uint16_t fifoCount2;
+uint16_t fifoCount3;
+uint16_t fifoCount4;
+uint16_t fifoCount5;
+uint16_t fifoCount6;
+
 uint8_t fifoBuffer[64]; // FIFO storage buffer
 
 // orientation/motion vars
 Quaternion q;        // [w, x, y, z]         quaternion container
-VectorInt16 aa;      // [x, y, z]            accel sensor measurements
-VectorInt16 aaReal;  // [x, y, z]            gravity-free accel sensor measurements
-VectorInt16 aaWorld; // [x, y, z]            world-frame accel sensor measurements
 VectorFloat gravity; // [x, y, z]            gravity vector
-float euler[3];      // [psi, theta, phi]    Euler angle container
 float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-byte StartUP = 100;  // lets get 100 readings from the MPU before we start trusting them (Bot is not trying to balance at this point it is just starting up.)
+float Yaw, Pitch, Roll;
 
 static unsigned long _ETimer = 0;
 int state = 0;
-int time = 10;
+int timer = 10;
 
 void setup()
 {
   Wire.begin();
   Wire.setClock(400000);
-  Serial.begin(9600);
+  Serial.begin(38400);
 
   Serial.println("i2cSetup");
   i2cSetup();
@@ -81,15 +83,88 @@ void loop()
       Serial.println(mpu5.testConnection() ? "MPU6050 5 OK" : "MPU6050 5 FAIL");
       Serial.println(mpu6.testConnection() ? "MPU6050 6 OK" : "MPU6050 6 FAIL");
     }
-    else if (input == "1")
+    else if (input == 1)
     {
-      set_sensitivity(MPU6050_ACCEL_FS_2, MPU6050_GYRO_FS_250);
-      Serial.println("Set sensitivity OK");
+      while (!Serial.available() > 0)
+      {
+      }
+      int input_accel = Serial.parseInt();
+      uint8_t accel;
+      bool is_allowable = 1;
+
+      while (!Serial.available() > 0)
+      {
+      }
+      int input_gyro = Serial.parseInt();
+      uint8_t gyro;
+
+      if (input_accel == 2)
+      {
+        accel = MPU6050_ACCEL_FS_2;
+      }
+      else if (input_accel == 4)
+      {
+        accel = MPU6050_ACCEL_FS_4;
+      }
+      else if (input_accel == 8)
+      {
+        accel = MPU6050_ACCEL_FS_8;
+      }
+      else if (input_accel == 16)
+      {
+        accel = MPU6050_ACCEL_FS_16;
+      }
+      else
+      {
+        is_allowable = false;
+      }
+
+      if (input_gyro == 250)
+      {
+        gyro = MPU6050_GYRO_FS_250;
+      }
+      else if (input_gyro == 500)
+      {
+        gyro = MPU6050_GYRO_FS_500;
+      }
+      else if (input_gyro == 1000)
+      {
+        gyro = MPU6050_GYRO_FS_1000;
+      }
+      else if (input_gyro == 2000)
+      {
+        gyro = MPU6050_GYRO_FS_2000;
+      }
+      else
+      {
+        is_allowable = false;
+      }
+
+      if (is_allowable)
+      {
+        set_sensitivity(accel, gyro);
+        Serial.println("Set sensitivity OK");
+      }
+      else
+      {
+        Serial.println("Set sensitivity FAIL");
+      }
     }
     else if (input == 2)
     {
-      calibration(15);
-      Serial.println("Calibration OK");
+      while (!Serial.available() > 0)
+      {
+      }
+      int input_iterations = Serial.parseInt();
+      if (0 < input_iterations && input_iterations <= 15)
+      {
+        calibration(input_iterations);
+        Serial.println("Calibration OK");
+      }
+      else
+      {
+        Serial.println("Calibration FAIL");
+      }
     }
     else if (input == 3)
     {
@@ -101,23 +176,33 @@ void loop()
     }
     else if (input == 5)
     {
-      timer();
+      while (!GetDMP())
+      {
+        delay(timer);
+      }
     }
     else if (input == 6)
     {
       state = 1;
+      Serial.println("Start timer OK");
+    }
+    else if (input == 7)
+    {
+      state = 0;
+      Serial.println("Stop timer OK");
     }
   }
 
   if (state)
   {
-    if (millis() - _ETimer >= (time))
+    if (millis() - _ETimer >= (timer))
     {
-      _ETimer += (time);
+      _ETimer += (timer);
       mpuInterrupt = true;
     }
     if (mpuInterrupt)
-    { // wait for MPU interrupt or extra packet(s) available
+    {
+      // wait for MPU interrupt or extra packet(s) available
       GetDMP();
     }
   }
@@ -173,7 +258,7 @@ void send_offsets()
   gx = mpu1.getXGyroOffset();
   gy = mpu1.getYGyroOffset();
   gz = mpu1.getZGyroOffset();
-  send_raw_data();
+  serial_send_raw_data();
 
   ax = mpu2.getXAccelOffset();
   ay = mpu2.getYAccelOffset();
@@ -181,7 +266,7 @@ void send_offsets()
   gx = mpu2.getXGyroOffset();
   gy = mpu2.getYGyroOffset();
   gz = mpu2.getZGyroOffset();
-  send_raw_data();
+  serial_send_raw_data();
 
   ax = mpu3.getXAccelOffset();
   ay = mpu3.getYAccelOffset();
@@ -189,7 +274,7 @@ void send_offsets()
   gx = mpu3.getXGyroOffset();
   gy = mpu3.getYGyroOffset();
   gz = mpu3.getZGyroOffset();
-  send_raw_data();
+  serial_send_raw_data();
 
   ax = mpu4.getXAccelOffset();
   ay = mpu4.getYAccelOffset();
@@ -197,7 +282,7 @@ void send_offsets()
   gx = mpu4.getXGyroOffset();
   gy = mpu4.getYGyroOffset();
   gz = mpu4.getZGyroOffset();
-  send_raw_data();
+  serial_send_raw_data();
 
   ax = mpu5.getXAccelOffset();
   ay = mpu5.getYAccelOffset();
@@ -205,7 +290,7 @@ void send_offsets()
   gx = mpu5.getXGyroOffset();
   gy = mpu5.getYGyroOffset();
   gz = mpu5.getZGyroOffset();
-  send_raw_data();
+  serial_send_raw_data();
 
   ax = mpu6.getXAccelOffset();
   ay = mpu6.getYAccelOffset();
@@ -213,7 +298,7 @@ void send_offsets()
   gx = mpu6.getXGyroOffset();
   gy = mpu6.getYGyroOffset();
   gz = mpu6.getZGyroOffset();
-  send_raw_data();
+  serial_send_raw_data();
 }
 
 void send_raw_data()
@@ -240,15 +325,15 @@ void send_raw_data()
 void serial_send_raw_data()
 {
   Serial.print(ax);
-  Serial.print('\t');
+  Serial.print(';');
   Serial.print(ay);
-  Serial.print('\t');
+  Serial.print(';');
   Serial.print(az);
-  Serial.print('\t');
+  Serial.print(';');
   Serial.print(gx);
-  Serial.print('\t');
+  Serial.print(';');
   Serial.print(gy);
-  Serial.print('\t');
+  Serial.print(';');
   Serial.println(gz);
 }
 
@@ -382,13 +467,6 @@ void checkDevStatus(int mpu_num)
   }
 }
 
-uint16_t fifoCount1;
-uint16_t fifoCount2;
-uint16_t fifoCount3;
-uint16_t fifoCount4;
-uint16_t fifoCount5;
-uint16_t fifoCount6;
-
 bool GetDMP()
 {
   mpuInterrupt = false;
@@ -456,14 +534,12 @@ bool GetDMP()
       fifoCount6 -= packetSize6;
     }
     MPUMath(6);
-    Serial.println();
+    //Serial.println();
 
-    return 1;
+    return true;
   }
-  return 0;
+  return false;
 }
-
-float Yaw, Pitch, Roll;
 
 void MPUMath(int num)
 {
@@ -508,20 +584,5 @@ void MPUMath(int num)
   Pitch = (ypr[1] * 180.0 / M_PI);
   Roll = (ypr[0] * 180.0 / M_PI);
 
-  Serial.print(String(Yaw) + "\t");
-  Serial.print(String(Pitch) + "\t");
-  Serial.println(String(Roll));
-}
-
-void timer()
-{
-  if (millis() - _ETimer >= (time))
-  {
-    _ETimer += (time);
-    mpuInterrupt = true;
-  }
-  if (mpuInterrupt)
-  { // wait for MPU interrupt or extra packet(s) available
-    GetDMP();
-  }
+  Serial.println(String(Yaw) + ";" + String(Pitch) + ";" + String(Roll));
 }
