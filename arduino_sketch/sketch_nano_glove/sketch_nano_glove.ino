@@ -58,7 +58,7 @@ void setup()
 {
   Wire.begin();
   Wire.setClock(400000);
-  Serial.begin(38400);
+  Serial.begin(2000000);
 
   Serial.println("i2cSetup");
   i2cSetup();
