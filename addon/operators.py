@@ -17,7 +17,7 @@ import bpy
 import os
 
 from .scene_properties import (GProperties)
-from .bluetooth_terminal import (Device)
+from .device import (Device)
 from .model import (Hand)
 
 
