@@ -1,4 +1,4 @@
-import serial
+#import serial
 import time
 
 from .command import (Command)
@@ -8,7 +8,47 @@ class Device():
     def __init__(self):
         self.serial_port = 'COM8'
         self.serial_baudrate = 2000000
+        
+    def connect(self):
+        return ""
 
+    def disconnect(self):
+        return ""
+
+    def write(self, message):
+        return ""
+
+    def read(self, expected_lines):
+        return ""
+
+    def read_line(self):
+        return ""
+
+    def check_connection(self):
+        return ""
+
+    def set_sensitivity(self):
+        return ""
+
+    def calibrate(self):
+        return ""
+
+    def get_offsets(self):
+        return ""
+
+    def get_raw_data(self):
+        return ""
+
+    def get_dmp(self):
+        return ""
+
+    def start_timer(self):
+        return ""
+
+    def stop_timer(self):
+        return ""
+
+""" 
     def connect(self):
         self.serialPort = serial.Serial(
             port=self.serial_port, baudrate=self.serial_baudrate)
@@ -67,3 +107,9 @@ class Device():
     def stop_timer(self):
         self.write(Command.stop_timer.id)
         return self.read(Command.stop_timer.expected_lines)
+
+
+
+ """
+
+

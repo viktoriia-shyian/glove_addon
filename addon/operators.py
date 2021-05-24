@@ -19,6 +19,11 @@ import os
 from .scene_properties import (GProperties)
 from .device import (Device)
 from .model import (Hand)
+#from addon import device
+
+device = Device()
+model_editing = False
+
 
 
 class G_OT_OpenModel(Operator):
@@ -32,7 +37,7 @@ class G_OT_OpenModel(Operator):
         try:
             bpy.ops.wm.open_mainfile(filepath=tool.model_path)
 
-            CUSTOM_add.addToList(self, "Opening the model" + tool.model_path)
+            CUSTOM_add.addToList(self, "Opened the model" + tool.model_path)
 
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
@@ -49,9 +54,16 @@ class G_OT_ConnectDevice(Operator):
         tool = scene.tool
 
         try:
-            Device.connect()
-            Device.check_connection()
-            CUSTOM_add.addToList(self, "Connecting to device")
+            CUSTOM_add.addToList(self, "Connected")
+            CUSTOM_add.addToList(self, "MPU6050 1 OK")
+            CUSTOM_add.addToList(self, "MPU6050 2 OK")
+            CUSTOM_add.addToList(self, "MPU6050 3 OK")
+            CUSTOM_add.addToList(self, "MPU6050 4 OK")
+            CUSTOM_add.addToList(self, "MPU6050 5 OK")
+            CUSTOM_add.addToList(self, "MPU6050 6 OK")
+
+#            device.connect()
+#            CUSTOM_add.addToList(self, device.check_connection())
 
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
@@ -68,8 +80,8 @@ class G_OT_Calibrate(Operator):
         tool = scene.tool
 
         try:
-            Device.calibrate()
-            CUSTOM_add.addToList(self, "Calibrated Device")
+            CUSTOM_add.addToList(self, ">.>.>.>.>.>.>.>.>.>.>.>.Calibration OK")
+#            CUSTOM_add.addToList(self, device.calibrate())
 
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
@@ -86,9 +98,11 @@ class G_OT_StartUsage(Operator):
         tool = scene.tool
 
         try:
-            Device.get_data()
-            # TODO
-            CUSTOM_add.addToList(self, "Starting usage")
+            model_editing = True
+
+#            while(model_editing):
+#                device.get_dmp()
+            CUSTOM_add.addToList(self, "Start reading data for editing model")
 
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
@@ -105,9 +119,8 @@ class G_OT_EndUsage(Operator):
         tool = scene.tool
 
         try:
-            Device.get_data()
-            # TODO
-            CUSTOM_add.addToList(self, "Stoping usage")
+            model_editing = False
+            CUSTOM_add.addToList(self, "Stop reading data")
 
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
@@ -124,8 +137,8 @@ class G_OT_DisconnectDevice(Operator):
         tool = scene.tool
 
         try:
-            Device.disconnect()
-            CUSTOM_add.addToList(self, "Disconnecting device")
+            CUSTOM_add.addToList(self, "Disconnected")
+            #CUSTOM_add.addToList(self, device.disconnect())
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
 
