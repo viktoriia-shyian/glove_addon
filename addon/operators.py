@@ -43,7 +43,7 @@ class G_OT_OpenModel(Operator):
             CUSTOM_add.addToList(self, str(error))
 
         return {'FINISHED'}
-
+import time
 
 class G_OT_ConnectDevice(Operator):
     bl_label = "Connect Device Operator"
@@ -55,13 +55,7 @@ class G_OT_ConnectDevice(Operator):
 
         try:
             CUSTOM_add.addToList(self, "Connected")
-            CUSTOM_add.addToList(self, "MPU6050 1 OK")
-            CUSTOM_add.addToList(self, "MPU6050 2 OK")
-            CUSTOM_add.addToList(self, "MPU6050 3 OK")
-            CUSTOM_add.addToList(self, "MPU6050 4 OK")
-            CUSTOM_add.addToList(self, "MPU6050 5 OK")
-            CUSTOM_add.addToList(self, "MPU6050 6 OK")
-
+            CUSTOM_add.addToList(self, "Wait 10 seconds")
 #            device.connect()
 #            CUSTOM_add.addToList(self, device.check_connection())
 
@@ -69,6 +63,7 @@ class G_OT_ConnectDevice(Operator):
             CUSTOM_add.addToList(self, str(error))
 
         return {'FINISHED'}
+
 
 
 class G_OT_Calibrate(Operator):
@@ -80,7 +75,12 @@ class G_OT_Calibrate(Operator):
         tool = scene.tool
 
         try:
-            CUSTOM_add.addToList(self, ">.>.>.>.>.>.>.>.>.>.>.>.Calibration OK")
+            timing = time.time()
+            state = True
+            while state:
+                if time.time() - timing > 10.0:
+                    CUSTOM_add.addToList(self, ">.>.>.>.>.>.>.>.>.>.>.>.Calibration OK")
+                    state = False
 #            CUSTOM_add.addToList(self, device.calibrate())
 
         except Exception as error:

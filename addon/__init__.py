@@ -19,7 +19,7 @@ import bpy
 bl_info = {
     "name": "Glove Add-on",
     "description": "",
-    "author": "VYanhy",
+    "author": "vshyyan",
     "version": (0, 0, 1),
     "blender": (2, 92, 0),
     "location": "3D View > Tools",
