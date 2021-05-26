@@ -19,11 +19,11 @@ import os
 from .scene_properties import (GProperties)
 from .device import (Device)
 from .model import (Hand)
-#from addon import device
+
 
 device = Device()
+model = Model()
 model_editing = False
-
 
 
 class G_OT_OpenModel(Operator):
@@ -43,7 +43,7 @@ class G_OT_OpenModel(Operator):
             CUSTOM_add.addToList(self, str(error))
 
         return {'FINISHED'}
-import time
+
 
 class G_OT_ConnectDevice(Operator):
     bl_label = "Connect Device Operator"
@@ -54,16 +54,14 @@ class G_OT_ConnectDevice(Operator):
         tool = scene.tool
 
         try:
-            CUSTOM_add.addToList(self, "Connected")
+            CUSTOM_add.addToList(self, device.connect())
             CUSTOM_add.addToList(self, "Wait 10 seconds")
-#            device.connect()
-#            CUSTOM_add.addToList(self, device.check_connection())
+            CUSTOM_add.addToList(self, device.check_connection())
 
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
 
         return {'FINISHED'}
-
 
 
 class G_OT_Calibrate(Operator):
@@ -75,13 +73,7 @@ class G_OT_Calibrate(Operator):
         tool = scene.tool
 
         try:
-            timing = time.time()
-            state = True
-            while state:
-                if time.time() - timing > 10.0:
-                    CUSTOM_add.addToList(self, ">.>.>.>.>.>.>.>.>.>.>.>.Calibration OK")
-                    state = False
-#            CUSTOM_add.addToList(self, device.calibrate())
+            CUSTOM_add.addToList(self, device.calibrate())
 
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
@@ -98,11 +90,8 @@ class G_OT_StartUsage(Operator):
         tool = scene.tool
 
         try:
-            model_editing = True
-
-#            while(model_editing):
-#                device.get_dmp()
             CUSTOM_add.addToList(self, "Start reading data for editing model")
+            bpy.app.timers.register(edit)
 
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
@@ -119,7 +108,7 @@ class G_OT_EndUsage(Operator):
         tool = scene.tool
 
         try:
-            model_editing = False
+            bpy.app.timers.unregister(edit)
             CUSTOM_add.addToList(self, "Stop reading data")
 
         except Exception as error:
@@ -137,8 +126,7 @@ class G_OT_DisconnectDevice(Operator):
         tool = scene.tool
 
         try:
-            CUSTOM_add.addToList(self, "Disconnected")
-            #CUSTOM_add.addToList(self, device.disconnect())
+            CUSTOM_add.addToList(self, device.disconnect())
         except Exception as error:
             CUSTOM_add.addToList(self, str(error))
 
@@ -225,8 +213,6 @@ class CUSTOM_OT_clearList(Operator):
         else:
             self.report({'INFO'}, "Nothing to remove")
 
-#        os.system('cls')
-
         return{'FINISHED'}
 
 
@@ -244,3 +230,8 @@ class CUSTOM_add():
         info = '"%s" added to list' % (item.name)
         self.report({'INFO'}, info)
         print({'INFO'}, info)
+
+
+def edit():
+    model.check_angles(device.get_dmp())
+    return 10.0
